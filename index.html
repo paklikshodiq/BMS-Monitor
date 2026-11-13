@@ -61,6 +61,11 @@ h1{font-size:20px;margin-bottom:12px;color:#7cc4ff}
 </div>
 
 <div class="card">
+  <div class="row"><span class="label">Resistansi Sel (m&Omega;)</span><span class="val" id="resvalid">--</span></div>
+  <div class="grid" id="res"></div>
+</div>
+
+<div class="card">
   <div class="row"><span class="label">Alarm</span><span class="val" id="alarm">--</span></div>
   <div class="row"><span class="label">Data umur</span><span class="val" id="age">--</span></div>
 </div>
@@ -69,8 +74,8 @@ h1{font-size:20px;margin-bottom:12px;color:#7cc4ff}
 <div class="wifi" id="wifi">--</div>
 
 <script>
-// ganti dengan milik Anda
-const RAW = 'https://raw.githubusercontent.com/paklikshodiq/BMS-Monitor/main/bms/data.json';
+// GANTI DENGAN URL REPO ANDA
+const RAW = 'https://raw.githubusercontent.com/paklikshodiq/bms-monitor/main/bms/data.json';
 const $ = id => document.getElementById(id);
 const f = (n,d=2) => (n==null||isNaN(n)) ? '--' : Number(n).toFixed(d);
 
@@ -110,6 +115,7 @@ async function refresh(){
 
     $('nc').textContent = d.num_cells || 0;
 
+    // Render Cells
     let cells = '';
     for (let i = 0; i < d.num_cells; i++) {
       const mv = d.cells_mv[i];
@@ -119,6 +125,16 @@ async function refresh(){
     }
     $('cells').innerHTML = cells || '<div class="label">Tidak ada data</div>';
 
+    // Render Resistansi
+    let res = '';
+    if(d.cell_res_valid){
+      for(let i=0;i<d.num_cells;i++){
+        res+='<div class="cell"><div class="n">R'+(i+1)+'</div><div class="v">'+d.cells_res[i]+'</div></div>';
+      }
+    }
+    $('res').innerHTML = res || '<div class="label">N/A</div>';
+    $('resvalid').textContent = d.cell_res_valid ? 'OK' : 'N/A';
+
     $('alarm').textContent = d.alarm_flags
       ? '0x' + d.alarm_flags.toString(16).toUpperCase().padStart(8,'0')
       : 'None';
@@ -126,7 +142,6 @@ async function refresh(){
     const age = d.last_update_age_ms / 1000;
     $('age').textContent = f(age,1) + ' s';
 
-    // peringatan jika data basi (upload ditunda GitHub CDN)
     const stale = age > 600;
     $('stale').textContent = stale
       ? '\u26A0 Data mungkin tertunda ' + Math.round(age/60) + ' menit (cache GitHub)'
@@ -140,7 +155,7 @@ async function refresh(){
   }
 }
 
-setInterval(refresh, 30000);  // refresh tiap 30s (lebih sering dari upload = sia-sia)
+setInterval(refresh, 30000);  // refresh tiap 30s
 refresh();
 </script>
 </body>
