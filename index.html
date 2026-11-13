@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BMS Monitor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:#0f1115;color:#e6e8eb;padding:12px;max-width:900px;margin:0 auto}
+h1{font-size:20px;margin-bottom:12px;color:#7cc4ff}
+.card{background:#1a1d24;border-radius:12px;padding:14px;margin-bottom:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.row{display:flex;justify-content:space-between;align-items:center;margin:6px 0}
+.label{color:#8a94a6;font-size:13px}
+.val{font-weight:600;font-size:16px;font-variant-numeric:tabular-nums}
+.val.big{font-size:26px;color:#7cc4ff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));
+      gap:6px;margin-top:10px}
+.cell{background:#232830;border-radius:6px;padding:6px 4px;text-align:center;font-size:12px}
+.cell .n{color:#8a94a6;font-size:10px}
+.cell .v{font-weight:600;margin-top:2px}
+.cell.ok{background:#1f3d2b}.cell.warn{background:#3d3520}.cell.bad{background:#3d1f1f}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;
+       font-weight:600;margin-right:6px;background:#2a2e36;color:#8a94a6}
+.badge.on{background:#1f6f3f;color:#afffc4}
+.stale{color:#ffb454;font-size:12px;text-align:center;margin-top:8px}
+.wifi{font-size:12px;color:#8a94a6;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>&#9889; BMS Monitor</h1>
+
+<div class="card">
+  <div class="row"><span class="label">BMS</span><span class="val" id="name">--</span></div>
+  <div class="row"><span class="label">Tipe</span><span class="val" id="type">--</span></div>
+</div>
+
+<div class="card">
+  <div class="row"><span class="label">SOC</span><span class="val big" id="soc">--</span></div>
+  <div class="row"><span class="label">Tegangan</span><span class="val" id="v">--</span></div>
+  <div class="row"><span class="label">Arus</span><span class="val" id="i">--</span></div>
+  <div class="row"><span class="label">Daya</span><span class="val" id="p">--</span></div>
+</div>
+
+<div class="card">
+  <div class="row"><span class="label">Sisa</span><span class="val" id="rem">--</span></div>
+  <div class="row"><span class="label">Kapasitas</span><span class="val" id="cap">--</span></div>
+  <div class="row"><span class="label">Siklus</span><span class="val" id="cyc">--</span></div>
+  <div class="row"><span class="label">Suhu MOS / BAT1 / BAT2</span><span class="val" id="t">--</span></div>
+  <div style="margin-top:8px">
+    <span class="badge" id="bchg">CHG</span>
+    <span class="badge" id="bdis">DIS</span>
+    <span class="badge" id="bbal">BAL</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row"><span class="label">Sel</span><span class="val" id="nc">--</span></div>
+  <div class="grid" id="cells"></div>
+</div>
+
+<div class="card">
+  <div class="row"><span class="label">Alarm</span><span class="val" id="alarm">--</span></div>
+  <div class="row"><span class="label">Data umur</span><span class="val" id="age">--</span></div>
+</div>
+
+<div class="stale" id="stale"></div>
+<div class="wifi" id="wifi">--</div>
+
+<script>
+// ganti dengan milik Anda
+const RAW = 'https://raw.githubusercontent.com/USERNAME/REPO/main/bms/data.json';
+const $ = id => document.getElementById(id);
+const f = (n,d=2) => (n==null||isNaN(n)) ? '--' : Number(n).toFixed(d);
+
+function cellClass(mv){
+  if (mv < 3000) return 'bad';
+  if (mv < 3200) return 'warn';
+  return 'ok';
+}
+
+async function refresh(){
+  try {
+    const r = await fetch(RAW + '?t=' + Date.now(), {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+
+    $('name').textContent  = d.name || '--';
+    $('type').textContent  = d.type || '--';
+    $('soc').textContent   = d.valid ? d.soc + '%' : '--';
+    $('v').textContent     = d.valid ? f(d.total_v,2) + ' V' : '--';
+    $('i').textContent     = d.valid ? f(d.current_a,2) + ' A' : '--';
+    $('p').textContent     = d.valid ? f(d.total_v*d.current_a,1) + ' W' : '--';
+    $('rem').textContent   = d.valid ? f(d.remain_ah,1) + ' Ah' : '--';
+    $('cap').textContent   = d.valid ? f(d.cap_ah,1) + ' Ah' : '--';
+    $('cyc').textContent   = d.valid ? d.cycle_cnt : '--';
+
+    let t = '--';
+    if (d.valid) {
+      t = f(d.temp_mos,1) + '\u00B0C';
+      if (d.temp_bat1_valid) t += ' / ' + f(d.temp_bat1,1) + '\u00B0C';
+      if (d.temp_bat2_valid) t += ' / ' + f(d.temp_bat2,1) + '\u00B0C';
+    }
+    $('t').textContent = t;
+
+    $('bchg').className = 'badge' + (d.charging ? ' on' : '');
+    $('bdis').className = 'badge' + (d.discharging ? ' on' : '');
+    $('bbal').className = 'badge' + (d.balancing ? ' on' : '');
+
+    $('nc').textContent = d.num_cells || 0;
+
+    let cells = '';
+    for (let i = 0; i < d.num_cells; i++) {
+      const mv = d.cells_mv[i];
+      cells += '<div class="cell ' + cellClass(mv) + '">' +
+               '<div class="n">C' + (i+1) + '</div>' +
+               '<div class="v">' + mv + '</div></div>';
+    }
+    $('cells').innerHTML = cells || '<div class="label">Tidak ada data</div>';
+
+    $('alarm').textContent = d.alarm_flags
+      ? '0x' + d.alarm_flags.toString(16).toUpperCase().padStart(8,'0')
+      : 'None';
+
+    const age = d.last_update_age_ms / 1000;
+    $('age').textContent = f(age,1) + ' s';
+
+    // peringatan jika data basi (upload ditunda GitHub CDN)
+    const stale = age > 600;
+    $('stale').textContent = stale
+      ? '\u26A0 Data mungkin tertunda ' + Math.round(age/60) + ' menit (cache GitHub)'
+      : '';
+
+    $('wifi').textContent = 'ESP32 ' + (d.ip || '-') +
+      ' \u00B7 RSSI ' + (d.wifi_rssi || '-') + ' dBm' +
+      ' \u00B7 Upload #' + (d.upload_count || 0);
+  } catch (e) {
+    $('stale').textContent = '\u26A0 Gagal ambil data: ' + e.message;
+  }
+}
+
+setInterval(refresh, 30000);  // refresh tiap 30s (lebih sering dari upload = sia-sia)
+refresh();
+</script>
+</body>
+</html>
